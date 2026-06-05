@@ -154,14 +154,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Iniciar sesión'),
                 ),
               ),
-              const SizedBox(height: 40),
-              Center(
-                child: Text(
-                  'Usuarios de prueba: usuario / admin / tecnico\nContraseña igual al usuario (usuario: 1234)',
-                  style: AppTextStyles.caption,
-                  textAlign: TextAlign.center,
-                ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('¿No tienes cuenta? ', style: AppTextStyles.bodySecondary),
+                  GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, AppRouter.register),
+                    child: Text(
+                      'Regístrate',
+                      style: AppTextStyles.body.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 32),
             ],
           ),
         ),

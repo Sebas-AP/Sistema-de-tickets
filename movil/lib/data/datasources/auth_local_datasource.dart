@@ -1,39 +1,59 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthLocalDatasource {
-  static const _keyUsername = 'session_username';
-  static const _keyLogged   = 'session_logged';
+  static const _keyUserId       = 'session_user_id';
+  static const _keyUsername     = 'session_username';
+  static const _keyLogged       = 'session_logged';
+  static const _keyRol          = 'session_rol';
+  static const _keyDepartamento = 'session_departamento';
 
-  Map<String, String> get _users => {
-    'usuario': dotenv.env['AUTH_PASS_USUARIO'] ?? '1234',
-    'admin':   dotenv.env['AUTH_PASS_ADMIN'] ?? 'admin',
-    'tecnico': dotenv.env['AUTH_PASS_TECNICO'] ?? 'tecnico',
-  };
+  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
-  Future<bool> login(String username, String password) async {
-    final stored = _users[username.toLowerCase().trim()];
-    if (stored == null || stored != password) return false;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLogged, true);
-    await prefs.setString(_keyUsername, username.trim());
-    return true;
+  Future<void> saveSession({
+    required int userId,
+    required String username,
+    required String rol,
+    required String departamento,
+  }) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_keyLogged,        true);
+    await prefs.setInt(_keyUserId,         userId);
+    await prefs.setString(_keyUsername,    username);
+    await prefs.setString(_keyRol,         rol);
+    await prefs.setString(_keyDepartamento, departamento);
   }
 
-  Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> clearSession() async {
+    final prefs = await _prefs;
     await prefs.remove(_keyLogged);
+    await prefs.remove(_keyUserId);
     await prefs.remove(_keyUsername);
+    await prefs.remove(_keyRol);
+    await prefs.remove(_keyDepartamento);
   }
 
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     return prefs.getBool(_keyLogged) ?? false;
   }
 
+  Future<int?> getUserId() async {
+    final prefs = await _prefs;
+    return prefs.getInt(_keyUserId);
+  }
+
   Future<String?> getUsername() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs;
     return prefs.getString(_keyUsername);
+  }
+
+  Future<String?> getRol() async {
+    final prefs = await _prefs;
+    return prefs.getString(_keyRol);
+  }
+
+  Future<String?> getDepartamento() async {
+    final prefs = await _prefs;
+    return prefs.getString(_keyDepartamento);
   }
 }

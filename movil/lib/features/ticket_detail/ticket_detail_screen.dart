@@ -2,26 +2,16 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/constants/app_strings.dart';
-import '../../data/repositories/ticket_repository.dart';
+import '../../data/models/ticket_model.dart';
 import 'widgets/ticket_info_card.dart';
-import 'widgets/response_card.dart';
 
 class TicketDetailScreen extends StatelessWidget {
-  final String ticketId;
+  final TicketModel ticket;
 
-  const TicketDetailScreen({super.key, required this.ticketId});
+  const TicketDetailScreen({super.key, required this.ticket});
 
   @override
   Widget build(BuildContext context) {
-    final ticket = TicketRepository().getById(ticketId);
-
-    if (ticket == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text(AppStrings.helloUser)),
-        body: const Center(child: Text('Ticket no encontrado')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.helloUser),
@@ -58,8 +48,6 @@ class TicketDetailScreen extends StatelessWidget {
               ),
               child: Text(ticket.description, style: AppTextStyles.body),
             ),
-            const SizedBox(height: 20),
-            ResponseCard(response: ticket.response),
           ],
         ),
       ),

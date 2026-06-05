@@ -20,6 +20,7 @@ class AppStrings {
   static const String date           = 'Fecha';
   static const String attendedBy     = 'Atendido por';
   static const String status         = 'Estado';
+  static const String departamento   = 'Departamento';
   static const String faultDesc      = 'Descripción de la falla:';
   static const String response       = 'Respuesta:';
   static const String waitingTech    = 'Aun no hay respuesta de un técnico, por favor espera';

@@ -17,12 +17,18 @@ class TicketInfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Ticket ${ticket.id}', style: AppTextStyles.heading),
+            Text('Ticket #${ticket.id.toString().padLeft(4, '0')}',
+                style: AppTextStyles.heading),
             const SizedBox(height: 12),
-            _Row(AppStrings.sentBy,     ticket.sentBy),
-            _Row(AppStrings.date,       DateFormatter.format(ticket.date)),
-            _Row(AppStrings.attendedBy, ticket.attendedBy),
-            _Row(AppStrings.status,     ticket.statusLabel),
+            _Row(AppStrings.date,        DateFormatter.format(ticket.date)),
+            _Row(AppStrings.departamento, ticket.departamento),
+            _Row(AppStrings.status,      ticket.statusLabel),
+            if (ticket.categoria != null && ticket.categoria!.isNotEmpty)
+              _Row('Categoría', ticket.categoria!),
+            if (ticket.prioridad != null && ticket.prioridad!.isNotEmpty)
+              _Row('Prioridad', ticket.prioridad!),
+            if (ticket.agente != null && ticket.agente! > 0)
+              _Row('Agente', 'ID: ${ticket.agente}'),
           ],
         ),
       ),
@@ -43,7 +49,7 @@ class _Row extends StatelessWidget {
       child: Row(
         children: [
           Text('$label: ', style: AppTextStyles.label),
-          Text(value, style: AppTextStyles.body),
+          Expanded(child: Text(value, style: AppTextStyles.body)),
         ],
       ),
     );

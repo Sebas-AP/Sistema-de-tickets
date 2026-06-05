@@ -1,53 +1,52 @@
-enum TicketStatus { pending, inProcess, blocked }
+enum TicketStatus { pending, inProcess, blocked, finished }
+
+enum TicketSource { tickets, otrosIncidentes }
 
 class TicketModel {
-  final String id;
-  final String sentBy;
-  final DateTime date;
-  final String attendedBy;
-  final TicketStatus status;
+  final int id;
+  final int userId;
+  final String departamento;
   final String description;
-  final String? response;
-  final String? imagePath;
+  final String status;
+  final DateTime date;
+  final int? incidenteId;
+  final String? categoria;
+  final String? prioridad;
+  final int? agente;
+  final String? tiempo;
+  final TicketSource source;
 
   const TicketModel({
     required this.id,
-    required this.sentBy,
-    required this.date,
-    required this.attendedBy,
-    required this.status,
+    required this.userId,
+    required this.departamento,
     required this.description,
-    this.response,
-    this.imagePath,
+    required this.status,
+    required this.date,
+    required this.source,
+    this.incidenteId,
+    this.categoria,
+    this.prioridad,
+    this.agente,
+    this.tiempo,
   });
 
-  String get statusLabel {
+  TicketStatus get statusEnum {
     switch (status) {
-      case TicketStatus.pending:   return 'Pendiente';
-      case TicketStatus.inProcess: return 'En proceso';
-      case TicketStatus.blocked:   return 'Bloqueado';
+      case 'Pendiente':   return TicketStatus.pending;
+      case 'En proceso':  return TicketStatus.inProcess;
+      case 'Bloqueado':   return TicketStatus.blocked;
+      case 'Terminado':   return TicketStatus.finished;
+      default:            return TicketStatus.pending;
     }
   }
 
-  TicketModel copyWith({
-    String? id,
-    String? sentBy,
-    DateTime? date,
-    String? attendedBy,
-    TicketStatus? status,
-    String? description,
-    String? response,
-    String? imagePath,
-  }) {
-    return TicketModel(
-      id:          id          ?? this.id,
-      sentBy:      sentBy      ?? this.sentBy,
-      date:        date        ?? this.date,
-      attendedBy:  attendedBy  ?? this.attendedBy,
-      status:      status      ?? this.status,
-      description: description ?? this.description,
-      response:    response    ?? this.response,
-      imagePath:   imagePath   ?? this.imagePath,
-    );
+  String get statusLabel {
+    switch (statusEnum) {
+      case TicketStatus.pending:   return 'Pendiente';
+      case TicketStatus.inProcess: return 'En proceso';
+      case TicketStatus.blocked:   return 'Bloqueado';
+      case TicketStatus.finished:  return 'Terminado';
+    }
   }
 }

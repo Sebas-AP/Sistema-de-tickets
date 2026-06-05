@@ -27,7 +27,7 @@ class ConfirmationScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () =>
                     Navigator.pushNamedAndRemoveUntil(
-                      context, AppRouter.tickets, (r) => r.settings.name == '/'),
+                      context, AppRouter.tickets, (r) => r.settings.name == AppRouter.home),
                 child: const Text(AppStrings.viewTickets),
               ),
               const SizedBox(height: 32),
