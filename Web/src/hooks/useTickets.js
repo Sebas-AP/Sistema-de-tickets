@@ -7,6 +7,7 @@ export function useTickets(agentName = null) {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
   const [filter,  setFilter]  = useState("all");
+  const [agentFilter, setAgentFilter] = useState("all");
   const [search,  setSearch]  = useState("");
 
   const loadTickets = useCallback(async () => {
@@ -17,21 +18,21 @@ export function useTickets(agentName = null) {
         { data: ticketRows, error: tErr },
         { data: incRows },
         { data: usrRows },
+        { data: agtRows },
       ] = await Promise.all([
         supabase.from("Tickets").select("*").order("Fecha", { ascending: false }),
-        supabase.from("Incidentes").select("id, Categoria, Incidente, Tiempo"),
+        supabase.from("Incidentes").select("id, Categoria, Incidente, Tiempo, Agentes"),
         supabase.from("Usuarios").select("id, Usuario, Rol"),
+        supabase.from("Agentes").select("id, Nombre"),
       ]);
       if (tErr) throw tErr;
 
       const incMap = Object.fromEntries((incRows ?? []).map(i => [i.id, i]));
       const usrMap = Object.fromEntries((usrRows ?? []).map(u => [u.id, u]));
 
-      // agentMap from Usuarios with Rol='agente' — wraps in { Nombre } to keep mapDbTicket compatible
+      // agentMap from Agentes
       const agentMap = Object.fromEntries(
-        (usrRows ?? [])
-          .filter(u => u.Rol?.toLowerCase() === "agente")
-          .map(u => [u.id, { Nombre: u.Usuario }])
+        (agtRows ?? []).map(a => [a.id, { Nombre: a.Nombre }])
       );
 
       setTickets((ticketRows ?? []).map(row => mapDbTicket(row, incMap, usrMap, agentMap)));
@@ -42,12 +43,26 @@ export function useTickets(agentName = null) {
     }
   }, []);
 
-  useEffect(() => { loadTickets(); }, [loadTickets]);
+  useEffect(() => {
+    loadTickets();
+    const subscription = supabase
+      .channel('tickets_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Tickets' }, () => {
+        loadTickets();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [loadTickets]);
 
   const filteredTickets = useMemo(() => {
-    let list = agentName ? tickets.filter(t => t.agent === agentName) : tickets;
+    let list = agentName ? tickets.filter(t => t.agent === agentName || t.requester === agentName) : tickets;
+    if (agentFilter !== "all") list = list.filter(t => String(t.agentRawId) === agentFilter);
     if (filter === "urgent") list = list.filter(t => t.priority === "urgent");
-    else if (filter !== "all") list = list.filter(t => t.status === filter);
+    else if (filter === "all") list = list.filter(t => t.status !== "resolved");
+    else list = list.filter(t => t.status === filter);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(t =>
@@ -58,7 +73,7 @@ export function useTickets(agentName = null) {
       );
     }
     return list;
-  }, [tickets, filter, search, agentName]);
+  }, [tickets, filter, search, agentName, agentFilter]);
 
   const updateTicket = useCallback(async (formattedId, changes) => {
     const ticket = tickets.find(t => t.id === formattedId);
@@ -81,7 +96,7 @@ export function useTickets(agentName = null) {
   }, [tickets]);
 
   const stats = useMemo(() => {
-    const base = agentName ? tickets.filter(t => t.agent === agentName) : tickets;
+    const base = agentName ? tickets.filter(t => t.agent === agentName || t.requester === agentName) : tickets;
     return {
       pending:  base.filter(t => t.status === "pending" || t.status === "open").length,
       resolved: base.filter(t => t.status === "resolved").length,
@@ -92,5 +107,5 @@ export function useTickets(agentName = null) {
     };
   }, [tickets, agentName]);
 
-  return { tickets, filteredTickets, filter, setFilter, search, setSearch, updateTicket, stats, loading, error, refresh: loadTickets };
+  return { tickets, filteredTickets, filter, setFilter, agentFilter, setAgentFilter, search, setSearch, updateTicket, stats, loading, error, refresh: loadTickets };
 }

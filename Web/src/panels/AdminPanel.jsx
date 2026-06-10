@@ -25,7 +25,7 @@ export function AdminPanel({ user, onLogout, dark, onToggleDark }) {
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedId, setSelectedId] = useState(null);
   const agents = useAgents();
-  const { tickets, filteredTickets, filter, setFilter, search, setSearch, updateTicket, stats, loading, error, refresh } = useTickets();
+  const { tickets, filteredTickets, filter, setFilter, agentFilter, setAgentFilter, search, setSearch, updateTicket, stats, loading, error, refresh } = useTickets();
 
   const handleSearch = q => {
     setSearch(q);
@@ -47,22 +47,23 @@ export function AdminPanel({ user, onLogout, dark, onToggleDark }) {
       )}
       {activeView === "tickets" && (
         <TicketsView filteredTickets={filteredTickets} filter={filter} setFilter={setFilter}
+          agentFilter={agentFilter} setAgentFilter={setAgentFilter} agents={agents}
           onOpenTicket={setSelectedId} loading={loading} error={error} onRetry={refresh} />
       )}
       {activeView === "users" && (
         <UsersView />
       )}
       {activeView === "agents" && (
-        <AgentsView agents={agents} tickets={tickets} />
+        <AgentsView agents={agents} tickets={tickets} onOpenTicket={setSelectedId} />
       )}
       {activeView === "reports" && (
-        <ReportsView tickets={tickets} />
+        <ReportsView tickets={tickets} onTicketAdded={refresh} />
       )}
       {activeView === "config" && (
         <ConfigView />
       )}
       {selectedTicket && (
-        <TicketDetail ticket={selectedTicket} agents={agents}
+        <TicketDetail ticket={selectedTicket} agents={agents} user={user}
           onClose={() => setSelectedId(null)} onSave={updateTicket} isAgent={false} />
       )}
     </AppLayout>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Edit2, X, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { ErrorBanner } from "../components/ui/ErrorBanner";
@@ -18,6 +18,72 @@ function RoleBadge({ role }) {
     <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${ROLE_STYLES[key] ?? "bg-[#555] text-white"}`}>
       {role ?? "—"}
     </span>
+  );
+}
+
+function EditUserModal({ user, onClose, onSave }) {
+  const [email, setEmail] = useState(user.Correo ?? "");
+  const [password, setPassword] = useState(user.Contraseña ?? "");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSave(user.id, { Correo: email, Contraseña: password });
+      onClose();
+    } catch (err) {
+      alert("Error al actualizar: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-[#c8b89a] dark:bg-[#1d1d1d] w-96 rounded-xl border border-[#a09070] dark:border-[#2a2a2a] shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#b0a07a] dark:border-[#2a2a2a] flex justify-between items-center">
+          <h3 className="font-semibold text-[#1a1a1a] dark:text-white">Editar Usuario</h3>
+          <button onClick={onClose} className="text-[#5a4a30] dark:text-[#666] hover:text-black dark:hover:text-white">
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+          <div>
+            <label className="text-[10px] font-bold text-[#5a4a30] dark:text-[#666] uppercase tracking-widest block mb-1">
+              Correo
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full border border-[#a09070] dark:border-[#3a3a3a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a2a2a] text-[#1a1a1a] dark:text-white outline-none focus:border-[#16a34a]"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-[#5a4a30] dark:text-[#666] uppercase tracking-widest block mb-1">
+              Contraseña
+            </label>
+            <input
+              type="text"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Nueva contraseña"
+              className="w-full border border-[#a09070] dark:border-[#3a3a3a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a2a2a] text-[#1a1a1a] dark:text-white outline-none focus:border-[#16a34a]"
+            />
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg border border-[#a09070] dark:border-[#3a3a3a] text-[#5a4a30] dark:text-[#ccc] hover:bg-[#b0a07a] dark:hover:bg-[#333]">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading} className="px-3 py-1.5 text-sm rounded-lg bg-[#16a34a] text-white hover:bg-[#15803d] flex items-center gap-1">
+              <Save size={14} /> Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -46,11 +112,23 @@ function useUsers() {
     }
   };
 
-  return { users, loading, error, refresh: load, updateRole };
+  const updateUser = async (userId, updates) => {
+    // updates can contain { Correo, Contraseña }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+    const { error: err } = await supabase.from("Usuarios").update(updates).eq("id", userId);
+    if (err) {
+      console.error("Error al actualizar usuario:", err.message);
+      load();
+      throw err;
+    }
+  };
+
+  return { users, loading, error, refresh: load, updateRole, updateUser };
 }
 
 export function UsersView() {
-  const { users, loading, error, refresh, updateRole } = useUsers();
+  const { users, loading, error, refresh, updateRole, updateUser } = useUsers();
+  const [editingUser, setEditingUser] = useState(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,7 +156,7 @@ export function UsersView() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#b0a078] dark:bg-[#252525] border-b border-[#a09070] dark:border-[#2a2a2a]">
-                  {["#", "Usuario", "Correo", "Departamento", "Rol actual", "Cambiar rol"].map((h, i) => (
+                  {["#", "Usuario", "Correo", "Departamento", "Rol actual", "Cambiar rol", "Acciones"].map((h, i) => (
                     <th key={i} className="px-4 py-2.5 text-left text-[11px] font-bold text-[#2a1a0a] dark:text-[#888] uppercase tracking-widest whitespace-nowrap">
                       {h}
                     </th>
@@ -126,6 +204,15 @@ export function UsersView() {
                           ))}
                         </select>
                       </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => setEditingUser(u)}
+                          className="w-7 h-7 rounded-lg border border-[#a09070] dark:border-[#3a3a3a] flex items-center justify-center text-[#5a4a30] dark:text-[#666] hover:bg-[#b0a07a] dark:hover:bg-[#2a2a2a] transition-colors"
+                          title="Editar"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -151,6 +238,13 @@ export function UsersView() {
             </div>
           )}
         </div>
+      )}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={updateUser}
+        />
       )}
     </div>
   );

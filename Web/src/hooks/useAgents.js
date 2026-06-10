@@ -6,14 +6,14 @@ export function useAgents() {
   const [agents, setAgents] = useState([]);
   useEffect(() => {
     supabase
-      .from("Usuarios")
-      .select("id, Usuario")
-      .eq("Rol", "agente")
+      .from("Agentes")
+      .select("id, Nombre, Especialidad")
       .then(({ data }) => {
-        setAgents((data ?? []).map(u => ({
-          id:       String(u.id),
-          name:     u.Usuario,
-          initials: getInitials(u.Usuario),
+        setAgents((data ?? []).map(a => ({
+          id:           String(a.id),
+          name:         a.Nombre,
+          initials:     getInitials(a.Nombre),
+          especialidad: a.Especialidad || ""
         })));
       });
   }, []);

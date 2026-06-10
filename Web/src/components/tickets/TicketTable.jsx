@@ -24,14 +24,27 @@ function elapsedStyle(status, rawFecha) {
   return               { cls: "text-red-400",                          Icon: Clock };
 }
 
-export function TicketTable({ tickets, filter, setFilter, onOpenTicket }) {
+export function TicketTable({ tickets, filter, setFilter, agentFilter, setAgentFilter, agents, onOpenTicket }) {
   return (
     <div className="bg-[#c8b89a] dark:bg-[#1d1d1d] rounded-xl border border-[#b0a07a] dark:border-[#2a2a2a] overflow-hidden">
       <div className="px-4 py-3 border-b border-[#b0a07a] dark:border-[#2a2a2a] flex items-center gap-2 flex-wrap">
         <span className="text-sm font-semibold text-[#1a1a1a] dark:text-white flex-1 uppercase tracking-wide">
           Todos los tickets
         </span>
-        <div className="flex gap-1.5">
+        <div className="flex gap-3 items-center">
+          {agents && agents.length > 0 && (
+            <select
+              value={agentFilter}
+              onChange={e => setAgentFilter(e.target.value)}
+              className="px-3 py-1 rounded-full text-xs border border-[#a09070] dark:border-[#3a3a3a] text-[#5a4a30] dark:text-[#888] bg-[#c8b89a] dark:bg-[#1d1d1d] outline-none focus:border-[#16a34a] focus:ring-1 focus:ring-[#16a34a] transition-colors"
+            >
+              <option value="all">Todos los agentes</option>
+              {agents.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+          <div className="flex gap-1.5">
           {FILTERS.map(f => (
             <button
               key={f.key}
@@ -45,6 +58,7 @@ export function TicketTable({ tickets, filter, setFilter, onOpenTicket }) {
               {f.label}
             </button>
           ))}
+          </div>
         </div>
       </div>
 

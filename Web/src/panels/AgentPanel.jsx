@@ -16,14 +16,14 @@ export function AgentPanel({ user, onLogout, dark, onToggleDark }) {
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedId, setSelectedId] = useState(null);
   const agents = useAgents();
-  const { tickets, filteredTickets, filter, setFilter, search, setSearch, updateTicket, stats, loading, error, refresh } = useTickets(user.agentName);
+  const { tickets, filteredTickets, filter, setFilter, agentFilter, setAgentFilter, search, setSearch, updateTicket, stats, loading, error, refresh } = useTickets(user.agentName);
 
   const handleSearch = q => {
     setSearch(q);
     if (q && activeView !== "tickets") setActiveView("tickets");
   };
 
-  const agentTickets   = tickets.filter(t => t.agent === user.agentName);
+  const agentTickets   = tickets.filter(t => t.agent === user.agentName || t.requester === user.agentName);
   const selectedTicket = agentTickets.find(t => t.id === selectedId) ?? null;
 
   return (
@@ -39,10 +39,11 @@ export function AgentPanel({ user, onLogout, dark, onToggleDark }) {
       )}
       {activeView === "tickets" && (
         <TicketsView filteredTickets={filteredTickets} filter={filter} setFilter={setFilter}
+          agentFilter={agentFilter} setAgentFilter={setAgentFilter} agents={agents}
           onOpenTicket={setSelectedId} loading={loading} error={error} onRetry={refresh} />
       )}
       {selectedTicket && (
-        <TicketDetail ticket={selectedTicket} agents={agents}
+        <TicketDetail ticket={selectedTicket} agents={agents} user={user}
           onClose={() => setSelectedId(null)} onSave={updateTicket} isAgent={true} />
       )}
     </AppLayout>

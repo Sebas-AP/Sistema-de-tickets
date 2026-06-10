@@ -1,42 +1,56 @@
 import { useState, useEffect, useMemo } from "react";
-import { Inbox, RefreshCw, AlertCircle } from "lucide-react";
+import { Inbox, RefreshCw, AlertCircle, FilePlus, X, Save } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { StatusBadge } from "../components/tickets/StatusBadge";
 import { PriorityBadge } from "../components/tickets/PriorityBadge";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
-import { getInitials } from "../utils/ticketUtils";
+import { getInitials, STATUS_MAP, PRIORITY_MAP } from "../utils/ticketUtils";
 
 // ── Otros Incidentes hook ──────────────────────────────────────
 function useOtrosIncidentes() {
-  const [items,   setItems]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  const [items,      setItems]      = useState([]);
+  const [incidentes, setIncidentes] = useState([]);
+  const [agents,     setAgents]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: rows, error: rErr }, { data: usrs }, { data: agts }] = await Promise.all([
+      const [{ data: rows, error: rErr }, { data: usrs }, { data: agts }, { data: incs }] = await Promise.all([
         supabase.from("Otros_incidentes").select("*").order("Fecha", { ascending: false }),
-        supabase.from("Usuarios").select("id, Usuario"),
+        supabase.from("Usuarios").select("id, Usuario, Rol"),
         supabase.from("Agentes").select("id, Nombre"),
+        supabase.from("Incidentes").select("id, Categoria, Incidente, Tiempo, Agentes"),
       ]);
       if (rErr) throw rErr;
+      
+      const realAgents = (usrs ?? []).filter(u => u.Rol?.toLowerCase() === "agente");
+      setAgents(realAgents);
+      setIncidentes(incs ?? []);
+
       const usrMap = Object.fromEntries((usrs ?? []).map(u => [u.id, u]));
       const agtMap = Object.fromEntries((agts ?? []).map(a => [a.id, a]));
-      setItems((rows ?? []).map(r => ({
-        _id:         r.id,
-        id:          `OI-${String(r.id).padStart(4, "0")}`,
-        usuario:     usrMap[r.Usuario_ID]?.Usuario ?? `#${r.Usuario_ID ?? "?"}`,
-        departamento: r.Departamento ?? "—",
-        status:      r.Status        ?? "open",
-        categoria:   r.Categoria     ?? "—",
-        fecha:       r.Fecha ? new Date(r.Fecha).toLocaleDateString("es-ES") : "—",
-        descripcion: r.Descripcion   ?? "",
-        prioridad:   r.Prioridad     ?? "medium",
-        agente:      agtMap[r.Agente]?.Nombre ?? "Sin asignar",
-        agtInitials: getInitials(agtMap[r.Agente]?.Nombre),
-      })));
+      setItems((rows ?? []).map(r => {
+        const rawStatus = (r.Status || "open").toLowerCase();
+        const rawPriority = (r.Prioridad || "medium").toLowerCase();
+
+        return {
+          _id:         r.id,
+          id:          `OI-${String(r.id).padStart(4, "0")}`,
+          usuario:     usrMap[r.Usuario_ID]?.Usuario ?? `#${r.Usuario_ID ?? "?"}`,
+          departamento: r.Departamento ?? "—",
+          status:      STATUS_MAP[rawStatus] || "open",
+          categoria:   r.Categoria     ?? "—",
+          fecha:       r.Fecha ? new Date(r.Fecha).toLocaleDateString("es-ES") : "—",
+          descripcion: r.Descripcion   ?? "",
+          prioridad:   PRIORITY_MAP[rawPriority] || "medium",
+          agente:      agtMap[r.Agente]?.Nombre ?? "Sin asignar",
+          agtInitials: getInitials(agtMap[r.Agente]?.Nombre),
+          _raw:        r,
+        };
+      }));
     } catch (err) {
       setError(err.message ?? "Error al cargar otros incidentes");
     } finally {
@@ -44,8 +58,36 @@ function useOtrosIncidentes() {
     }
   };
 
+  const convertToTicket = async (oiId, payload) => {
+    const oi = items.find(i => i._id === oiId);
+    if (!oi) return;
+    
+    const inc = incidentes.find(i => i.id === payload.Incidente_ID);
+    const assignedAgent = payload.Agente || (inc ? inc.Agentes : null);
+
+    const newTicket = {
+      Incidente_ID: payload.Incidente_ID,
+      Usuario:      oi._raw.Usuario_ID,
+      Agente:       assignedAgent,
+      Status:       "open",
+      Prioridad:    payload.Prioridad,
+      Fecha:        oi._raw.Fecha,
+      Descripcion:  oi._raw.Descripcion,
+      Departamento: oi._raw.Departamento,
+    };
+    
+    const { error: insErr } = await supabase.from("Tickets").insert([newTicket]);
+    if (insErr) throw insErr;
+    
+    const { error: delErr } = await supabase.from("Otros_incidentes").delete().eq("id", oiId);
+    if (delErr) throw delErr;
+    
+    await load();
+    return newTicket;
+  };
+
   useEffect(() => { load(); }, []);
-  return { items, loading, error, refresh: load };
+  return { items, incidentes, agents, loading, error, refresh: load, convertToTicket };
 }
 
 // ── Bar chart helpers ──────────────────────────────────────────
@@ -88,10 +130,132 @@ function BarChart({ data, title }) {
   );
 }
 
+// ── Convert Modal ──────────────────────────────────────────────
+function ConvertModal({ oi, agents, incidentes, onClose, onConvert }) {
+  const [incidenteId, setIncidenteId] = useState("");
+  const [agenteId,    setAgenteId]    = useState("");
+  const [prioridad,   setPrioridad]   = useState(oi.prioridad === "Pendiente" ? "medium" : (oi.prioridad || "medium"));
+  const [saving,      setSaving]      = useState(false);
+  const [err,         setErr]         = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!incidenteId) { setErr("Por favor, selecciona un tipo de incidente."); return; }
+    
+    setSaving(true); setErr("");
+    try {
+      await onConvert(oi._id, {
+        Incidente_ID: parseInt(incidenteId),
+        Agente:       agenteId ? parseInt(agenteId) : null,
+        Prioridad:    prioridad,
+      });
+      onClose();
+    } catch (error) {
+      setErr(error.message);
+      setSaving(false);
+    }
+  };
+
+  // Agrupar incidentes por categoría para el select
+  const groupedInc = incidentes.reduce((acc, inc) => {
+    if (!acc[inc.Categoria]) acc[inc.Categoria] = [];
+    acc[inc.Categoria].push(inc);
+    return acc;
+  }, {});
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-[#c8b89a] dark:bg-[#1d1d1d] w-[450px] rounded-2xl border border-[#a09070] dark:border-[#2a2a2a] shadow-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#b0a07a] dark:border-[#2a2a2a] flex justify-between items-center">
+          <div>
+            <h3 className="font-semibold text-[#1a1a1a] dark:text-white">Convertir a Ticket</h3>
+            <p className="text-xs text-[#5a4a30] dark:text-[#888] mt-0.5 truncate max-w-[350px]">{oi.descripcion}</p>
+          </div>
+          <button onClick={onClose} className="text-[#5a4a30] dark:text-[#666] hover:text-black dark:hover:text-white">
+            <X size={16} />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4">
+          <div>
+            <label className="text-[10px] font-bold text-[#5a4a30] dark:text-[#666] uppercase tracking-widest block mb-1">
+              Clasificación (Incidente)
+            </label>
+            <select
+              value={incidenteId}
+              onChange={e => setIncidenteId(e.target.value)}
+              className="w-full border border-[#a09070] dark:border-[#3a3a3a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a2a2a] text-[#1a1a1a] dark:text-white outline-none focus:border-[#16a34a]"
+              required
+            >
+              <option value="">— Selecciona un incidente —</option>
+              {Object.entries(groupedInc).map(([cat, incs]) => (
+                <optgroup key={cat} label={cat}>
+                  {incs.map(inc => (
+                    <option key={inc.id} value={inc.id}>{inc.Incidente}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-[#5a4a30] dark:text-[#666] uppercase tracking-widest block mb-1">
+                Asignar Agente
+              </label>
+              <select
+                value={agenteId}
+                onChange={e => setAgenteId(e.target.value)}
+                className="w-full border border-[#a09070] dark:border-[#3a3a3a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a2a2a] text-[#1a1a1a] dark:text-white outline-none focus:border-[#16a34a]"
+              >
+                <option value="">— Sin asignar —</option>
+                {agents.map(a => (
+                  <option key={a.id} value={a.id}>{a.Usuario}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-[#5a4a30] dark:text-[#666] uppercase tracking-widest block mb-1">
+                Prioridad
+              </label>
+              <select
+                value={prioridad}
+                onChange={e => setPrioridad(e.target.value)}
+                className="w-full border border-[#a09070] dark:border-[#3a3a3a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a2a2a] text-[#1a1a1a] dark:text-white outline-none focus:border-[#16a34a]"
+              >
+                <option value="urgent">Urgente</option>
+                <option value="high">Alta</option>
+                <option value="medium">Media</option>
+                <option value="low">Baja</option>
+              </select>
+            </div>
+          </div>
+
+          {err && (
+            <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+              <AlertCircle size={13} /> {err}
+            </div>
+          )}
+
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg border border-[#a09070] dark:border-[#3a3a3a] text-[#5a4a30] dark:text-[#ccc] hover:bg-[#b0a07a] dark:hover:bg-[#333]">
+              Cancelar
+            </button>
+            <button type="submit" disabled={saving} className="px-3 py-1.5 text-sm rounded-lg bg-[#16a34a] text-white hover:bg-[#15803d] flex items-center gap-1.5">
+              <Save size={14} /> {saving ? "Convirtiendo..." : "Aceptar y convertir"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Main view ─────────────────────────────────────────────────
-export function ReportsView({ tickets }) {
-  const { items, loading: loadingOI, error: errorOI, refresh } = useOtrosIncidentes();
+export function ReportsView({ tickets, onTicketAdded }) {
+  const { items, incidentes, agents, loading: loadingOI, error: errorOI, refresh, convertToTicket } = useOtrosIncidentes();
   const [oiSearch, setOiSearch] = useState("");
+  const [convertingOi, setConvertingOi] = useState(null);
 
   // Tickets por tipo de incidente (category)
   const byCategory = useMemo(() => {
@@ -187,7 +351,7 @@ export function ReportsView({ tickets }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#b0a078] dark:bg-[#252525] border-b border-[#a09070] dark:border-[#2a2a2a]">
-                    {["ID", "Descripción / Categoría", "Usuario", "Departamento", "Agente", "Estado", "Prioridad", "Fecha"].map((h, i) => (
+                    {["ID", "Descripción / Categoría", "Usuario", "Departamento", "Agente", "Estado", "Prioridad", "Fecha", "Acciones"].map((h, i) => (
                       <th key={i} className="px-4 py-2.5 text-left text-[11px] font-bold text-[#2a1a0a] dark:text-[#888] uppercase tracking-widest whitespace-nowrap">
                         {h}
                       </th>
@@ -223,6 +387,15 @@ export function ReportsView({ tickets }) {
                         <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                         <td className="px-4 py-3"><PriorityBadge priority={item.prioridad} /></td>
                         <td className="px-4 py-3 text-xs text-[#5a4a30] dark:text-[#666] whitespace-nowrap">{item.fecha}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setConvertingOi(item)}
+                            className="w-7 h-7 rounded-lg border border-[#a09070] dark:border-[#3a3a3a] flex items-center justify-center text-[#16a34a] hover:bg-[#b0a07a] dark:hover:bg-[#2a2a2a] transition-colors"
+                            title="Convertir a Ticket"
+                          >
+                            <FilePlus size={14} />
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -240,6 +413,19 @@ export function ReportsView({ tickets }) {
           </div>
         )}
       </div>
+
+      {convertingOi && (
+        <ConvertModal
+          oi={convertingOi}
+          agents={agents}
+          incidentes={incidentes}
+          onClose={() => setConvertingOi(null)}
+          onConvert={async (id, payload) => {
+            await convertToTicket(id, payload);
+            if (onTicketAdded) onTicketAdded();
+          }}
+        />
+      )}
     </div>
   );
 }
