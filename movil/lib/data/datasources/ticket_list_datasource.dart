@@ -92,4 +92,28 @@ class TicketListDatasource {
       return [];
     }
   }
+
+  Future<TicketModel?> getTicketById(int id) async {
+    try {
+      final res = await _client
+          .from('Tickets')
+          .select('id, Usuario, Departamento, Status, Incidente_ID, Fecha, Descripcion')
+          .eq('id', id)
+          .maybeSingle();
+      if (res == null) return null;
+      return TicketModel(
+        id:          res['id'] as int,
+        userId:      res['Usuario'] as int,
+        departamento: res['Departamento'] as String? ?? '',
+        description: res['Descripcion'] as String? ?? '',
+        status:      res['Status'] as String? ?? 'pending',
+        date:        DateTime.parse(res['Fecha'] as String).toLocal(),
+        incidenteId: res['Incidente_ID'] as int?,
+        source:      TicketSource.tickets,
+      );
+    } catch (e) {
+      debugPrint('=== getTicketById error: $e');
+      return null;
+    }
+  }
 }

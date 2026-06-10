@@ -9,7 +9,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  Future<void> init() async {
+  Future<void> init({void Function(String?)? onPayload}) async {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -20,6 +20,11 @@ class NotificationService {
 
     await _flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (onPayload != null) {
+          onPayload(response.payload);
+        }
+      },
     );
   }
 
@@ -35,6 +40,7 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
+    String? payload,
   }) async {
     const AndroidNotificationDetails androidNotificationDetails =
         AndroidNotificationDetails(
@@ -53,6 +59,7 @@ class NotificationService {
       title: title,
       body: body,
       notificationDetails: notificationDetails,
+      payload: payload,
     );
   }
 }

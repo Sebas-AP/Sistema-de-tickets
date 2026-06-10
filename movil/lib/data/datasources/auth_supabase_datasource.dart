@@ -113,7 +113,7 @@ extension RegisterResultMessage on RegisterResult {
       case RegisterResult.success:
         return 'Registro exitoso';
       case RegisterResult.usernameTaken:
-        return 'Ese usuario ya está en uso';
+        return 'Este correo ya está en uso';
       case RegisterResult.emptyFields:
         return 'Completa todos los campos';
       case RegisterResult.usernameTooShort:
